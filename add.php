@@ -13,6 +13,8 @@ $footer = include_template('footer.php', [
     'categories' => getCategories($con),
 ]);
 
+
+
 if (!$is_auth) {
     http_response_code(403);
 
@@ -24,40 +26,24 @@ if (!$is_auth) {
 }
 else {
     $errors = [];
-    $rules = [
-        'lot-name' => function () {
-            return validateFilled('lot-name', 'Введите наименование лота');
-        },
-        'category' => function () {
-            return validateDropdown('category', 'Выберите категорию');
-        },
-        'message' => function () {
-            return validateFilled('message', 'Напишите описание лота');
-        },
-        'lot-rate' => function () {
-            return validateFilled('lot-rate', 'Введите начальную цену');
-        },
-        'lot-step' => function () {
-            return validateFilled('lot-step', 'Введите шаг ставки');
-        },
-        'lot-date' => function () {
-            return validateFilled('lot-date', 'Введите дату завершения торгов');
-        },
-    ];
 
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        foreach ($_POST as $key => $value) {
-            if (isset($rules[$key])) {
-                $rule = $rules[$key];
-                $errors[$key] = $rule();
+        $required_fields = [
+            'lot-name' => 'Введите наименование лота',
+            'category' => 'Выберите категорию',
+            'message' => 'Введите описание лота',
+            'lot-rate' => 'Введите начальную цену',
+            'lot-step' => 'Введите шаг ставки',
+            'lot-date' => 'Введите дату окончания торгов',
+        ];
+
+        foreach($required_fields as $key => $value) {
+            if (empty($_POST[$key])) {
+                $errors[$key] = $value;
             }
         }
 
-        $imgValidation = validateImg('lot-img', 'Загрузите изображение лота');
-
-        if ($imgValidation) {
-            $errors['lot-img'] = $imgValidation;
-        } else {
+        if (isset($_FILES['lot-img']) && !empty($_FILES['lot-img']['tmp_name'])) {
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $file_name = $_FILES['lot-img']['tmp_name'];
             $file_type = finfo_file($finfo, $file_name);
@@ -65,20 +51,20 @@ else {
             if ($file_type !== 'image/jpeg' && $file_type !== 'image/png') {
                 $errors['lot-img'] = 'Некорректный формат изображения';
             }
+        } else {
+            $errors['lot-img'] = 'Загрузите изображение лота';
         }
 
-        if (!$errors['lot-rate'] && (!is_numeric($_POST['lot-rate']) || stristr($_POST['lot-rate'], '.'))) {
-            $errors['lot-rate'] = 'Цена должна быть целым числом!';
+        if (!isset($errors['lot-rate']) || $_POST['lot-rate'] == 0) {
+            $errors = validateLotRate($errors);
         }
 
-        if (!$errors['lot-step'] && (!is_numeric($_POST['lot-step']) || stristr($_POST['lot-step'], '.'))) {
-            $errors['lot-step'] = 'Шаг ставки должен быть целым числом!';
+        if (!isset($errors['lot-step']) || $_POST['lot-step'] == 0) {
+            $errors = validateLotStep($errors);
         }
 
-        if (!$errors['lot-date']) {
-            if (!is_date_valid($_POST['lot-date'])) {
-                $errors['lot-date'] = 'Некорректный формат даты';
-            }
+        if (!isset($errors['lot-date'])) {
+            $errors = validateLotDate($errors);
         }
 
         $errors = array_filter($errors);

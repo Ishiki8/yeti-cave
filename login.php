@@ -17,35 +17,28 @@ if ($is_auth) {
     header('location: /index.php');
 } else {
     $errors = [];
-    $rules = [
-        'email' => function() {
-            return validateFilled('email', 'Введите e-mail');
-        },
-        'password' => function() {
-            return validateFilled('password', 'Введите пароль');
-        }
-    ];
 
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        foreach($_POST as $key => $value) {
-            if (isset($rules[$key])) {
-                $rule = $rules[$key];
-                $errors[$key] = $rule();
+        $required_fields = [
+            'email' => 'Введите e-mail',
+            'password' => 'Введите пароль'
+        ];
+
+        foreach($required_fields as $key => $value) {
+            if (empty($_POST[$key])) {
+                $errors[$key] = $value;
             }
         }
-        $emailValidation = validateEmail('email', 'Некорректный формат e-mail');
 
-        if (!$errors['email'] && $emailValidation) {
-            $errors['email'] = $emailValidation;
+        if (!isset($errors['email'])) {
+            $errors = validateEmail($errors);
         }
 
-        $email = validateUniqueEmail($con, $_POST['email'], 'E-mail уже используется');
-
-        if (!$email && !$errors['email']) {
+        if (!isset($errors['email']) && isEmailUnique($con, $_POST['email'])) {
             $errors['email'] = 'Пользователя с таким E-mail не существует';
         }
 
-        if (!$errors['email'] && !$errors['password']) {
+        if (!isset($errors['email']) && !isset($errors['password'])) {
             $user = getUserByEmail($con, $_POST['email']);
 
             if (!password_verify($_POST['password'], $user['password'])) {

@@ -23,37 +23,27 @@ if ($is_auth) {
     ]);
 } else {
     $errors = [];
-    $rules = [
-        'email' => function() {
-            return validateFilled('email', 'Введите e-mail');
-        },
-        'password' => function() {
-            return validateFilled('password', 'Введите пароль');
-        },
-        'name' => function() {
-            return validateFilled('name', 'Введите имя');
-        },
-        'message' => function() {
-            return validateFilled('message', 'Напишите как с вами связаться');
-        }
-    ];
 
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        foreach($_POST as $key => $value) {
-            if (isset($rules[$key])) {
-                $rule = $rules[$key];
-                $errors[$key] = $rule();
+        $required_fields = [
+            'email' => 'Введите e-mail',
+            'password' => 'Введите пароль',
+            'name' => 'Введите имя',
+            'message' => 'Напишите, как с вами связаться'
+        ];
+
+        foreach($required_fields as $key => $value) {
+            if (empty($_POST[$key])) {
+                $errors[$key] = $value;
             }
         }
 
-        $emailValidation = validateEmail('email', 'Некорректный формат e-mail');
-
-        if (!$errors['email'] && $emailValidation) {
-            $errors['email'] = $emailValidation;
+        if (!isset($errors['email'])) {
+            $errors = validateEmail($errors);
         }
 
-        if (!$errors['email']) {
-            $errors['email'] = validateUniqueEmail($con, $_POST['email'], 'E-mail уже используется');
+        if (!isset($errors['email']) && !isEmailUnique($con, $_POST['email'])) {
+            $errors['email'] = 'E-mail уже используется';
         }
 
         $errors = array_filter($errors);

@@ -13,7 +13,7 @@
   <?= $header ?>
     <div class="container">
       <section class="lots">
-        <?php if(!$searchQueryParameter || !$lotsForPagination): ?>
+        <?php if(!$lotsForPagination): ?>
         <h2>Ничего не найдено по вашему запросу</h2>
         <?php else: ?>
         <h2>Результаты поиска по запросу «<span><?= $searchQueryParameter ?></span>»</h2>
@@ -47,7 +47,7 @@
         </ul>
         <?php endif ?>
       </section>
-        <?php if($searchQueryParameter && $lotsForPagination): ?>
+        <?php if($lotsForPagination): ?>
         <ul class="pagination-list">
             <?php if($currentPage != 1): ?>
                 <li class="pagination-item pagination-item-prev">

@@ -229,44 +229,48 @@ function getPostVal(string $name): string | int | float {
  *
  * @return string строка ошибки или пустое значение
  */
-function validateFilled(string $name, string $value): string {
+function validateFilled(string $name): string {
     if (empty($_POST[$name])) {
-        return $value;
+        return 'Поле должно быть заполнено';
     }
 
     return '';
 }
 
-/**
- * Проверяет выбор значения в выпадающем списке
- *
- * @param string $name ключ списка в массиве $_POST
- * @param string $value строка ошибки
- *
- * @return string строка ошибки или пустое значение
- */
-function validateDropdown(string $name, string $value): string {
-    if (!$_POST[$name]) {
-        return $value;
+function validateLotRate(array $errors): array {
+    if (!filter_var($_POST['lot-rate'], FILTER_VALIDATE_INT)) {
+        $errors['lot-rate'] = 'Введите целое число';
     }
 
-    return '';
+    if ($_POST['lot-rate'] <= 0) {
+        $errors['lot-rate'] = 'Начальная цена должна быть больше 0';
+    }
+
+    return $errors;
 }
 
-/**
- * Проверяет выбор изображения для загрузки
- *
- * @param string $name ключ изображения в массиве $_POST
- * @param string $value строка ошибки
- *
- * @return string строка ошибки или пустое значение
- */
-function validateImg(string $name, string $value): string{
-    if ($_FILES[$name]['error']) {
-        return $value;
+function validateLotStep(array $errors): array {
+    if (!filter_var($_POST['lot-step'], FILTER_VALIDATE_INT)) {
+        $errors['lot-step'] = 'Введите целое число';
     }
 
-    return '';
+    if ($_POST['lot-step'] <= 0) {
+        $errors['lot-step'] = 'Шаг ставки должен быть больше 0';
+    }
+
+    return $errors;
+}
+
+function validateLotDate(array $errors): array {
+    if (!is_date_valid($_POST['lot-date'])) {
+        $errors['lot-date'] = 'Дата должна быть в формате ГГГГ-ММ-ДД';
+    }
+
+    if (strtotime($_POST['lot-date']) < strtotime('now')) {
+        $errors['lot-date'] = 'Дата должна быть не раньше, чем завтра';
+    }
+
+    return $errors;
 }
 
 /**
@@ -277,40 +281,29 @@ function validateImg(string $name, string $value): string{
  *
  * @return string строка ошибки или пустое значение
  */
-function validateEmail(string $name, string $value): string{
-    if (!filter_input(INPUT_POST, $name, FILTER_VALIDATE_EMAIL)) {
-        return $value;
+function validateEmail(array $errors): array{
+    if (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+        $errors['email'] = 'Некорректный формат email';
     }
 
-    return '';
+    return $errors;
 }
 
-/**
- * Проверяет уникальность введенного E-mail
- *
- * Сравнивает введенный E-mail с существующими в базе данных
- *
- * @param mysqli $con соединение с базой данных
- * @param string $name ключ E-mail в массиве $_POST
- * @param string $value строка ошибки
- *
- * @return string строка ошибки или пустое значение
- */
-function validateUniqueEmail(mysqli $con, string $name, string $value): string {
+function isEmailUnique(mysqli $con, string $email): bool {
     $sql = 'SELECT `email` FROM `User`';
     $result = mysqli_query($con, $sql);
     $emails = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
-    foreach($emails as $email) {
-        if ($email['email'] == $name) {
-            return $value;
+    foreach($emails as $obj) {
+        if ($obj['email'] == $email) {
+            return false;
         }
     }
 
-    return '';
+    return true;
 }
 
-function findLotsBySearchQuery(mysqli $con, string $searchQuery): array | null {
+function findLotsBySearchQuery(mysqli $con, string $searchQuery = ""): array | null {
     $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
             FROM `Lot` AS `L`
             INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
@@ -324,22 +317,40 @@ function findLotsBySearchQuery(mysqli $con, string $searchQuery): array | null {
     return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
 }
 
-function getLotsForPagination(mysqli $con, string $searchQuery, int $lotsPerPage): array {
-    $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
-            FROM `Lot` AS `L`
-            INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
-            WHERE `end_date` >= CURRENT_DATE AND MATCH(`L`.`title`, `description`) AGAINST(?)
-            ORDER BY `create_date` DESC
-            LIMIT ? OFFSET ?';
-    $prepare_values = mysqli_prepare($con, $sql);
-
+function getLotsForPagination(mysqli $con, int $lotsPerPage, string $searchQuery = ""): array {
     $offset = (intval(getQueryParameter('page')) - 1) * $lotsPerPage;
 
-    mysqli_stmt_bind_param($prepare_values, 'sii',
-        $searchQuery,
-        $lotsPerPage,
-        $offset
-    );
+    if (empty($searchQuery)) {
+        $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
+        FROM `Lot` AS `L`
+        INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
+        WHERE `end_date` >= CURRENT_DATE
+        ORDER BY `create_date` DESC
+        LIMIT ? OFFSET ?';
+
+        $prepare_values = mysqli_prepare($con, $sql);
+                
+        mysqli_stmt_bind_param($prepare_values, 'ii',
+            $lotsPerPage,
+            $offset
+        );
+    } else {
+        $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
+        FROM `Lot` AS `L`
+        INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
+        WHERE `end_date` >= CURRENT_DATE AND MATCH(`L`.`title`, `description`) AGAINST(?)
+        ORDER BY `create_date` DESC
+        LIMIT ? OFFSET ?';
+
+        $prepare_values = mysqli_prepare($con, $sql);
+
+        mysqli_stmt_bind_param($prepare_values, 'sii',
+            $searchQuery,
+            $lotsPerPage,
+            $offset
+        );
+    } 
+    
     mysqli_stmt_execute($prepare_values);
     return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
 }

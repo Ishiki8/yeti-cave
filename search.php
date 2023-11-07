@@ -9,7 +9,12 @@ $currentPage = 1;
 $searchQueryParameter =  htmlspecialchars(getQueryParameter('search'));
 isset($_GET['page']) ? $currentPage = htmlspecialchars($_GET['page']) : $_GET['page'] = 1;
 
-$foundLots = findLotsBySearchQuery($con, $searchQueryParameter);
+if ($searchQueryParameter) {
+    $foundLots = findLotsBySearchQuery($con, $searchQueryParameter);
+} else {
+    $foundLots = getLotsList($con);
+}
+
 $totalLots = count($foundLots);
 $totalPages = ceil($totalLots / LOTS_PER_PAGE);
 
@@ -32,14 +37,16 @@ if(($_GET['page'] < 1 || $_GET['page'] > $totalPages) && $searchQueryParameter &
         'footer' => $footer,
     ]);
 } else {
+    if ($searchQueryParameter) {
+        $lotsForPagination = getlotsForPagination($con, LOTS_PER_PAGE, $searchQueryParameter);
+    } else {
+        $lotsForPagination = getlotsForPagination($con, LOTS_PER_PAGE);
+    }
+
     $search_content = include_template('search.php', [
         'header' => $header,
         'footer' => $footer,
-        'lotsForPagination' => getLotsForPagination(
-            $con,
-            $searchQueryParameter,
-            LOTS_PER_PAGE,
-        ),
+        'lotsForPagination' => $lotsForPagination,
         'searchQueryParameter' => $searchQueryParameter,
         'totalPages' => $totalPages,
         'currentPage' => $currentPage,

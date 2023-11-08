@@ -5,17 +5,13 @@ require_once('functions.php');
 
 $header = include_template('header.php', [
     'categories' => getCategories($con),
-    'is_auth' => $is_auth,
-    'user_name' => $user_name,
 ]);
 
 $footer = include_template('footer.php', [
     'categories' => getCategories($con),
 ]);
 
-
-
-if (!$is_auth) {
+if (!isset($_SESSION['username'])) {
     http_response_code(403);
 
     $add_content = include_template('403.php', [
@@ -27,7 +23,7 @@ if (!$is_auth) {
 else {
     $errors = [];
 
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $required_fields = [
             'lot-name' => 'Введите наименование лота',
             'category' => 'Выберите категорию',
@@ -55,12 +51,12 @@ else {
             $errors['lot-img'] = 'Загрузите изображение лота';
         }
 
-        if (!isset($errors['lot-rate']) || $_POST['lot-rate'] == 0) {
-            $errors = validateLotRate($errors);
+        if (!isset($errors['lot-rate']) || $_POST['lot-rate'] === 0) {
+            $errors = validateLotInt($errors, 'lot-rate');
         }
 
-        if (!isset($errors['lot-step']) || $_POST['lot-step'] == 0) {
-            $errors = validateLotStep($errors);
+        if (!isset($errors['lot-step']) || $_POST['lot-step'] === 0) {
+            $errors = validateLotInt($errors, 'lot-step');
         }
 
         if (!isset($errors['lot-date'])) {
@@ -76,10 +72,11 @@ else {
             move_uploaded_file($_FILES['lot-img']['tmp_name'], $file_path . $file_name);
 
             $data = $_POST;
-            $data['author_id'] = $user_id;
+            $data['author_id'] = $_SESSION['user_id'];
             $data['lot-img'] = $file_url;
             $id = addLotToDatabase($con, $data);
             header('Location: /lot.php?id=' . $id);
+            exit;
         }
     };
 

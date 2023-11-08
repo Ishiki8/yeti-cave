@@ -3,14 +3,15 @@ require_once('init.php');
 require_once('helpers.php');
 require_once('functions.php');
 
-$header = include_template('header.php',[
-    'is_auth' => $is_auth,
-    'user_name' => $user_name,
+$header = include_template('header.php');
+
+$lotsListContent = include_template('lotsList.php', [
+    'lots' => getLotsList($con),
 ]);
 
 $main = include_template('main.php', [
     'categories' => getCategories($con),
-    'lots' => getLotsList($con),
+    'lotsListContent' => $lotsListContent,
 ]);
 
 $footer = include_template('footer.php', [
@@ -22,8 +23,6 @@ $layout_content = include_template('layout.php', [
     'header' => $header,
     'main' => $main,
     'footer' => $footer,
-    'is_auth' => $is_auth,
-    'user_name' => $user_name,
     'categories' => getCategories($con),
 ]);
 

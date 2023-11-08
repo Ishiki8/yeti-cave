@@ -17,7 +17,6 @@ function convertNumberToPrice(int $number): string {
 CONST HOURS_IN_DAY = 24;
 CONST SEC_IN_HOURS = 3600;
 CONST MIN_IN_HOURS = 60;
-CONST SEC_IN_MINUTES = 60;
 
 /**
  * Считает оставшееся до наступления даты время
@@ -30,9 +29,8 @@ function leftTimeToDate(string $date): array {
     $left_time = strtotime($date) - time() + HOURS_IN_DAY * SEC_IN_HOURS;
     $hours = str_pad(floor($left_time / SEC_IN_HOURS), 2, '0', STR_PAD_LEFT);
     $minutes = str_pad(ceil(($left_time - $hours * SEC_IN_HOURS) / MIN_IN_HOURS), 2, '0', STR_PAD_LEFT);
-    $seconds = str_pad($left_time - $hours * SEC_IN_HOURS - $minutes * SEC_IN_MINUTES + SEC_IN_MINUTES, 2, '0', STR_PAD_LEFT);
 
-    return [$hours, $minutes, $seconds == '60' ? '59' : $seconds];
+    return [$hours, $minutes];
 }
 
 /**
@@ -45,14 +43,15 @@ function leftTimeToDate(string $date): array {
  * @return array активные лоты из базы данных или пустой массив
  */
 function getLotsList(mysqli $con): array {
-    $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
+    $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, 
+            `C`.`code` AS `category_code`, `create_date`, `end_date`
             FROM `Lot` AS `L`
             INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
             WHERE `end_date` >= CURRENT_DATE
             ORDER BY `create_date` DESC';
     $result = mysqli_query($con, $sql);
 
-    if($result) {
+    if ($result) {
         return mysqli_fetch_all($result, MYSQLI_ASSOC);
     }
     else {
@@ -72,13 +71,36 @@ function getCategories(mysqli $con): array {
     $sql = 'SELECT * FROM `Category`';
     $result = mysqli_query($con, $sql);
 
-    if($result) {
+    if ($result) {
         return mysqli_fetch_all($result, MYSQLI_ASSOC);
     }
     else {
         print('Запрос не выполнен!');
         return [];
     }
+}
+
+/**
+ * Получает название категории по параметру запроса
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @return string название категории или пустую строку
+ */
+function getCategoryNameByQueryParameter(mysqli $con): string {
+    $sql = 'SELECT `title` FROM `Category`
+            WHERE `code` = ?';
+
+    $prepare_values = mysqli_prepare($con, $sql);
+    $queryParameter = getQueryParameter('category');
+
+    mysqli_stmt_bind_param($prepare_values, 's',
+        $queryParameter
+    );
+    mysqli_stmt_execute($prepare_values);
+
+    $result = mysqli_fetch_row(mysqli_stmt_get_result($prepare_values));
+    return $result[0] ?? '';
 }
 
 /**
@@ -93,6 +115,26 @@ function getQueryParameter(string $parameter): string {
 }
 
 /**
+ * Формирует адрес для пагинации
+ *
+ * @param int $page номер страницы для перенаправления
+ *
+ * @return string адрес для перенаправления
+ */
+function getUrlForPagination(int $page): string {
+    $url = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    $url = explode('?', $url);
+    $url = $url[0];
+
+    $parameters = [];
+    parse_str($_SERVER['QUERY_STRING'], $parameters);
+
+    $parameters['page'] = $page;
+
+    return $url . "?" . http_build_query($parameters);
+}
+
+/**
  * Проверяет существование id лота в базе данных
  *
  * Проверяет существование id лота из параметра запроса в базе данных
@@ -103,17 +145,12 @@ function getQueryParameter(string $parameter): string {
  */
 function checkLotByQueryId(mysqli $con): bool {
     $id = filter_input(INPUT_GET, 'id');
-    $lots = getLotsList($con);
-    $flag = false;
 
-    foreach ($lots as $item) {
-        if ($item['id'] == $id) {
-            $flag = true;
-            break;
-        }
-    }
+    $sql = 'SELECT COUNT(*) FROM `Lot`
+            WHERE `id` = '.$id;
 
-    return $flag;
+    $result = mysqli_query($con, $sql);
+    return mysqli_fetch_row($result)[0];
 }
 
 /**
@@ -207,60 +244,48 @@ function getUserByEmail(mysqli $con, string $email): array {
     mysqli_stmt_bind_param($prepare_values, 's', $email);
     mysqli_stmt_execute($prepare_values);
 
-    return mysqli_fetch_assoc(mysqli_stmt_get_result($prepare_values));
+    return mysqli_fetch_assoc(mysqli_stmt_get_result($prepare_values)) ?? [];
 }
 
 /**
  * Получает значение по ключу из массива $_POST
  *
- * @param string $name ключ
+ * @param string $key ключ
  *
  * @return string | int | float значение из массива или пустое значение
  */
-function getPostVal(string $name): string | int | float {
-    return $_POST[$name] ?? '';
+function getPostVal(string $key): string | int | float {
+    return isset($_POST[$key]) ? htmlspecialchars($_POST[$key]) : '';
 }
 
 /**
- * Проверяет заполнение поля
+ * Проверяет число из массива $_POST на корректность
  *
- * @param string $name ключ поля в массиве $_POST
- * @param string $value строка ошибки
+ * Число корректно, если оно целое и больше 0
  *
- * @return string строка ошибки или пустое значение
+ * @param array $errors массив ошибок
+ *
+ * @param string $key ключ в массиве $_POST
+ *
+ * @return array массив ошибок с ошибкой, если она есть
  */
-function validateFilled(string $name): string {
-    if (empty($_POST[$name])) {
-        return 'Поле должно быть заполнено';
-    }
-
-    return '';
-}
-
-function validateLotRate(array $errors): array {
-    if (!filter_var($_POST['lot-rate'], FILTER_VALIDATE_INT)) {
-        $errors['lot-rate'] = 'Введите целое число';
-    }
-
-    if ($_POST['lot-rate'] <= 0) {
-        $errors['lot-rate'] = 'Начальная цена должна быть больше 0';
+function validateLotInt(array $errors, string $key): array {
+    if (!filter_var($_POST[$key], FILTER_VALIDATE_INT, array('options' => array('min_range' => 0)))) {
+        $errors[$key] = 'Введите целое число больше 0';
     }
 
     return $errors;
 }
 
-function validateLotStep(array $errors): array {
-    if (!filter_var($_POST['lot-step'], FILTER_VALIDATE_INT)) {
-        $errors['lot-step'] = 'Введите целое число';
-    }
-
-    if ($_POST['lot-step'] <= 0) {
-        $errors['lot-step'] = 'Шаг ставки должен быть больше 0';
-    }
-
-    return $errors;
-}
-
+/**
+ * Проверяет дату завершения торгов на корректность
+ *
+ * Дата корректна, если она находится в формате ГГГГ-ММ-ДД и больше текущей
+ *
+ * @param array $errors массив ошибок
+ *
+ * @return array массив ошибок с ошибкой, если она есть
+ */
 function validateLotDate(array $errors): array {
     if (!is_date_valid($_POST['lot-date'])) {
         $errors['lot-date'] = 'Дата должна быть в формате ГГГГ-ММ-ДД';
@@ -276,12 +301,11 @@ function validateLotDate(array $errors): array {
 /**
  * Проверяет формат введенного E-mail
  *
- * @param string $name ключ E-mail в массиве $_POST
- * @param string $value строка ошибки
+ * @param array $errors массив ошибок
  *
- * @return string строка ошибки или пустое значение
+ * @return array массив ошибок с ошибкой, если она есть
  */
-function validateEmail(array $errors): array{
+function validateEmail(array $errors): array {
     if (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
         $errors['email'] = 'Некорректный формат email';
     }
@@ -289,68 +313,106 @@ function validateEmail(array $errors): array{
     return $errors;
 }
 
-function isEmailUnique(mysqli $con, string $email): bool {
-    $sql = 'SELECT `email` FROM `User`';
-    $result = mysqli_query($con, $sql);
-    $emails = mysqli_fetch_all($result, MYSQLI_ASSOC);
+/**
+ * Считает количество активных лотов по параметру запроса
+ *
+ * Если передан параметр 'search', то считаются активные лоты, удовлетворяющие значению параметра 'search'
+ *
+ * Если передан параметр 'category', то считаются активные лоты с категорией из параметра 'category'
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @param string $queryParameter параметр запроса - 'search' или 'category'
+ *
+ * @return int количество активных лотов
+ */
+function countLotsByQueryParameter(mysqli $con, string $queryParameter): int {
+    $parameterValue = getQueryParameter($queryParameter);
 
-    foreach($emails as $obj) {
-        if ($obj['email'] == $email) {
-            return false;
-        }
+    if ($queryParameter === 'search') {
+        $sql = 'SELECT COUNT(*) FROM `Lot`
+                WHERE `end_date` >= CURRENT_DATE 
+                AND MATCH(`title`, `description`) AGAINST(?)';
+    } else if ($queryParameter === 'category') {
+        $sql = 'SELECT COUNT(*) FROM `Lot` AS `L`
+                INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
+                WHERE `end_date` >= CURRENT_DATE 
+                AND `C`.`code` = ?';
+    } else {
+        return 0;
     }
 
-    return true;
+    $prepare_values = mysqli_prepare($con, $sql);
+
+    mysqli_stmt_bind_param($prepare_values, 's', $parameterValue);
+    mysqli_stmt_execute($prepare_values);
+    $result = mysqli_stmt_get_result($prepare_values);
+
+    return mysqli_fetch_row($result)[0] ?? 0;
 }
 
-function findLotsBySearchQuery(mysqli $con, string $searchQuery = ""): array | null {
-    $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
+/**
+ * Получает лоты по параметру поиска
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @param int $lotsPerPage количество лотов для отображения на странице
+ *
+ * @param string $searchQuery значение параметра 'search'
+ *
+ * @return array активные лоты, удовлетворяющие значению параметра 'search'
+ */
+function getLotsBySearchQuery(mysqli $con, int $lotsPerPage, string $searchQuery): array {
+    $offset = (intval(getQueryParameter('page')) - 1) * $lotsPerPage;
+
+    $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`,
+            `C`.`code` AS `category_code`, `create_date`, `end_date`
             FROM `Lot` AS `L`
             INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
             WHERE `end_date` >= CURRENT_DATE AND MATCH(`L`.`title`, `description`) AGAINST(?)
-            ORDER BY `create_date` DESC';
+            ORDER BY `create_date` DESC
+            LIMIT ? OFFSET ?';
     $prepare_values = mysqli_prepare($con, $sql);
 
-    mysqli_stmt_bind_param($prepare_values, 's', $searchQuery);
+    mysqli_stmt_bind_param($prepare_values, 'sii', 
+        $searchQuery,
+        $lotsPerPage,
+        $offset
+    );
     mysqli_stmt_execute($prepare_values);
 
     return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
 }
 
-function getLotsForPagination(mysqli $con, int $lotsPerPage, string $searchQuery = ""): array {
+/**
+ * Получает лоты по параметру категории
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @param int $lotsPerPage количество лотов для отображения на странице
+ *
+ * @param string $categoryCode значение параметра 'category'
+ *
+ * @return array лоты, категория которых удовлетворяет значению параметра 'category'
+ */
+function getLotsByCategoryCode(mysqli $con, int $lotsPerPage, string $categoryCode): array {
     $offset = (intval(getQueryParameter('page')) - 1) * $lotsPerPage;
 
-    if (empty($searchQuery)) {
-        $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
-        FROM `Lot` AS `L`
-        INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
-        WHERE `end_date` >= CURRENT_DATE
-        ORDER BY `create_date` DESC
-        LIMIT ? OFFSET ?';
+    $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, 
+            `C`.`code` AS `category_code`, `create_date`, `end_date`
+            FROM `Lot` AS `L`
+            INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
+            WHERE `end_date` >= CURRENT_DATE AND `C`.`code` = ?
+            ORDER BY `create_date` DESC
+            LIMIT ? OFFSET ?';
+    $prepare_values = mysqli_prepare($con, $sql);
 
-        $prepare_values = mysqli_prepare($con, $sql);
-                
-        mysqli_stmt_bind_param($prepare_values, 'ii',
-            $lotsPerPage,
-            $offset
-        );
-    } else {
-        $sql = 'SELECT `L`.`id`, `L`.`title`, `start_price`, `image`, `C`.`title` AS `category_name`, `create_date`, `end_date`
-        FROM `Lot` AS `L`
-        INNER JOIN `Category` AS `C` ON `L`.`category_id` = `C`.`id`
-        WHERE `end_date` >= CURRENT_DATE AND MATCH(`L`.`title`, `description`) AGAINST(?)
-        ORDER BY `create_date` DESC
-        LIMIT ? OFFSET ?';
-
-        $prepare_values = mysqli_prepare($con, $sql);
-
-        mysqli_stmt_bind_param($prepare_values, 'sii',
-            $searchQuery,
-            $lotsPerPage,
-            $offset
-        );
-    } 
-    
+    mysqli_stmt_bind_param($prepare_values, 'sii',
+        $categoryCode,
+        $lotsPerPage,
+        $offset
+    );
     mysqli_stmt_execute($prepare_values);
+
     return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
 }

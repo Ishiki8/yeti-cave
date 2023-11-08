@@ -5,15 +5,13 @@ require_once('functions.php');
 
 $header = include_template('header.php', [
     'categories' => getCategories($con),
-    'is_auth' => $is_auth,
-    'user_name' => $user_name,
 ]);
 
 $footer = include_template('footer.php', [
     'categories' => getCategories($con),
 ]);
 
-if ($is_auth) {
+if (isset($_SESSION['username'])) {
     http_response_code(403);
 
     $registration_content = include_template('403.php', [
@@ -24,7 +22,7 @@ if ($is_auth) {
 } else {
     $errors = [];
 
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $required_fields = [
             'email' => 'Введите e-mail',
             'password' => 'Введите пароль',
@@ -42,7 +40,7 @@ if ($is_auth) {
             $errors = validateEmail($errors);
         }
 
-        if (!isset($errors['email']) && !isEmailUnique($con, $_POST['email'])) {
+        if (!isset($errors['email']) && !empty(getUserByEmail($con, $_POST['email']))) {
             $errors['email'] = 'E-mail уже используется';
         }
 
@@ -57,6 +55,7 @@ if ($is_auth) {
             addUserToDatabase($con, $data);
 
             header('Location: /login.php');
+            exit;
         }
     }
 

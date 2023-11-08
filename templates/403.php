@@ -10,13 +10,11 @@
 
 <div class="page-wrapper">
     <?=$header?>
-        
         <section class="lot-item container">
             <h2>403 Доступ запрещен</h2>
             <p>Доступ к этой странице запрещен</p>
         </section>
     </main>
-
 </div>
 
 <?=$footer?>

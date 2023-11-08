@@ -5,20 +5,19 @@ require_once('functions.php');
 
 $header = include_template('header.php',[
     'categories' => getCategories($con),
-    'is_auth' => $is_auth,
-    'user_name' => $user_name,
 ]);
 
 $footer = include_template('footer.php', [
     'categories' => getCategories($con),
 ]);
 
-if ($is_auth) {
+if (isset($_SESSION['username'])) {
     header('location: /index.php');
+    exit;
 } else {
     $errors = [];
 
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $required_fields = [
             'email' => 'Введите e-mail',
             'password' => 'Введите пароль'
@@ -34,14 +33,10 @@ if ($is_auth) {
             $errors = validateEmail($errors);
         }
 
-        if (!isset($errors['email']) && isEmailUnique($con, $_POST['email'])) {
-            $errors['email'] = 'Пользователя с таким E-mail не существует';
-        }
-
         if (!isset($errors['email']) && !isset($errors['password'])) {
             $user = getUserByEmail($con, $_POST['email']);
 
-            if (!password_verify($_POST['password'], $user['password'])) {
+            if (empty($user) || !password_verify($_POST['password'], $user['password'])) {
                 $errors['password'] = 'Неправильный пароль';
             }
 
@@ -52,6 +47,7 @@ if ($is_auth) {
                 $_SESSION['username'] = $user['name'];
                 $_SESSION['user_id'] = $user['id'];
                 header('Location: /index.php');
+                exit;
             }
         }
     }

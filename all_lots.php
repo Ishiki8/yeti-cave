@@ -3,10 +3,18 @@ require_once('init.php');
 require_once('helpers.php');
 require_once('functions.php');
 
+$header = include_template('header.php',[
+    'categories' => getCategories($con),
+]);
+
+$footer = include_template('footer.php', [
+    'categories' => getCategories($con),
+]);
+
 CONST LOTS_PER_PAGE = 3;
 
 $currentPage = 1;
-$queryParameterValue = getQueryParameter('search');
+$queryParameterValue =  getQueryParameter('category');
 
 if (!$queryParameterValue) {
     header('Location: /index.php');
@@ -25,28 +33,20 @@ if ($data['page'] === 1) {
     exit;
 }
 
-$totalLots = countLotsByQueryParameter($con, 'search');
+$totalLots = countLotsByQueryParameter($con, 'category');
 $totalPages = ceil($totalLots / LOTS_PER_PAGE);
 $totalPages = $totalPages > 0 ? $totalPages : 1;
-
-$header = include_template('header.php',[
-    'categories' => getCategories($con),
-]);
-
-$footer = include_template('footer.php', [
-    'categories' => getCategories($con),
-]);
 
 if($_GET['page'] < 1 || $_GET['page'] > $totalPages) {
     http_response_code(404);
 
-    $search_content = include_template('404.php',[
+    $all_lots_content = include_template('404.php',[
         'title' => 'Страница не найдена',
         'header' => $header,
         'footer' => $footer,
     ]);
 } else {
-    $lots = getLotsBySearchQuery($con, LOTS_PER_PAGE, $queryParameterValue);
+    $lots = getLotsByCategoryCode($con, LOTS_PER_PAGE, $queryParameterValue);
 
     $paginationContent = include_template('pagination.php', [
         'totalPages' => $totalPages,
@@ -57,7 +57,8 @@ if($_GET['page'] < 1 || $_GET['page'] > $totalPages) {
         'lots' => $lots,
     ]);
 
-    $search_content = include_template('search.php', [
+    $all_lots_content = include_template('all_lots.php', [
+        'con' => $con,
         'header' => $header,
         'footer' => $footer,
         'lots' => $lots,
@@ -67,4 +68,4 @@ if($_GET['page'] < 1 || $_GET['page'] > $totalPages) {
     ]);
 }
 
-print($search_content);
+print($all_lots_content);

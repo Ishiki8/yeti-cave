@@ -5,8 +5,6 @@ require_once('functions.php');
 
 $header = include_template('header.php',[
     'categories' => getCategories($con),
-    'is_auth' => $is_auth,
-    'user_name' => $user_name,
 ]);
 
 $footer = include_template('footer.php', [
@@ -25,7 +23,6 @@ if (!getQueryParameter('id') || !checkLotByQueryId($con)) {
     $lot_content = include_template('lot.php', [
         'lot' => getLotById($con),
         'header' => $header,
-        'is_auth' => $is_auth,
         'footer' => $footer,
     ]);
 }

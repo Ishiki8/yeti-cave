@@ -8,11 +8,11 @@
                 <input type="search" name="search" value="<?= getQueryParameter('search')?>" placeholder="Поиск лота">
                 <input class="main-header__search-btn" type="submit" name="find" value="Найти">
             </form>
-            <?php if($is_auth === 1): ?>
+            <?php if(isset($_SESSION['username'])): ?>
                 <a class="main-header__add-lot button" href="../add.php">Добавить лот</a>
                 <nav class="user-menu">
                     <div class="user-menu__logged">
-                        <p><?=$user_name?></p>
+                        <p><?=htmlspecialchars($_SESSION['username'])?></p>
                         <a class="user-menu__bets" href="#">Мои ставки</a>
                         <a class="user-menu__logout" href="../logout.php">Выход</a>
                     </div>
@@ -37,7 +37,7 @@
             <ul class="nav__list container">
                 <?php foreach($categories as $item):?>
                 <li class="nav__item">
-                    <a href="#"><?=htmlspecialchars($item['title'])?></a>
+                    <a href="../all_lots.php<?="?category="."{$item['code']}"?>"><?=htmlspecialchars($item['title'])?></a>
                 </li>
                 <?php endforeach; ?>
             </ul>

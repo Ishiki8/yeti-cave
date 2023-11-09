@@ -13,7 +13,7 @@
                 <nav class="user-menu">
                     <div class="user-menu__logged">
                         <p><?=htmlspecialchars($_SESSION['username'])?></p>
-                        <a class="user-menu__bets" href="#">Мои ставки</a>
+                        <a class="user-menu__bets" href="../my_bets.php">Мои ставки</a>
                         <a class="user-menu__logout" href="../logout.php">Выход</a>
                     </div>
 
@@ -36,7 +36,7 @@
         <nav class="nav">
             <ul class="nav__list container">
                 <?php foreach($categories as $item):?>
-                <li class="nav__item">
+                <li class="nav__item <?php if ($item['code'] === getQueryParameter('category')):?>nav__item--current<?php endif; ?>">
                     <a href="../all_lots.php<?="?category="."{$item['code']}"?>"><?=htmlspecialchars($item['title'])?></a>
                 </li>
                 <?php endforeach; ?>

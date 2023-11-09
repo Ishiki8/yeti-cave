@@ -3,7 +3,7 @@
         <ul class="nav__list container">
             <?php foreach($categories as $item):?>
 
-            <li class="nav__item">
+            <li class="nav__item  <?php if ($item['code'] === getQueryParameter('category')):?>nav__item--current<?php endif; ?>">
                 <a href="../all_lots.php<?="?category="."{$item['code']}"?>"><?=htmlspecialchars($item['title'])?></a>
             </li>
             <?php endforeach; ?>

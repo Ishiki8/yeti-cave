@@ -5,7 +5,7 @@
                 Назад
             </a>
         </li>
-        <?php if($currentPage == 1): ?>
+        <?php if (intval($currentPage) === 1): ?>
             <style>
                 .pagination-item-prev {
                     visibility: hidden;
@@ -16,8 +16,8 @@
             </style>
         <?php endif; ?>
 
-        <?php for($i = 1; $i <= $totalPages; $i++): ?>
-            <li class="pagination-item <?= $currentPage == $i ? "pagination-item-active" : ""?>">
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+            <li class="pagination-item <?= intval($currentPage) === $i ? "pagination-item-active" : ""?>">
                 <a href="<?= getUrlForPagination($i) ?>"><?= $i ?></a>
             </li>
         <?php endfor; ?>
@@ -27,7 +27,7 @@
                 Вперед
             </a>
         </li>
-        <?php if($currentPage >= $totalPages): ?>
+        <?php if ($currentPage >= $totalPages): ?>
             <style>
                 .pagination-item-next {
                     visibility: hidden;

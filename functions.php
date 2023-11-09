@@ -1,4 +1,6 @@
 <?php
+require_once('helpers.php');
+
 date_default_timezone_set('Asia/Yekaterinburg');
 
 /**
@@ -162,7 +164,8 @@ function checkLotByQueryId(mysqli $con): bool {
  */
 function getLotById(mysqli $con): array {
     $id = filter_input(INPUT_GET, 'id');
-    $sql = 'SELECT `Lot`.*, `C`.`title` AS `category_name`, `C`.`code` AS `category_code`
+    $sql = 'SELECT `Lot`.*, `C`.`title` AS `category_name`, `C`.`code` AS `category_code`,
+            (SELECT `user_id` FROM `Bet` WHERE `lot_id` = '.$id.' ORDER BY `date` DESC LIMIT 1) AS `lastBetUserId`
             FROM `Lot`
             INNER JOIN `Category` AS `C` ON `Lot`.`category_id` = `C`.`id`
             WHERE `Lot`.`id` ='.$id;
@@ -415,4 +418,80 @@ function getLotsByCategoryCode(mysqli $con, int $lotsPerPage, string $categoryCo
     mysqli_stmt_execute($prepare_values);
 
     return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
+}
+
+function addBet(mysqli $con): void {
+    $sql = 'INSERT INTO `Bet` (`sum`, `user_id`, `lot_id`)
+            VALUES (?, ?, ?)';
+    $prepare_values = mysqli_prepare($con, $sql);
+
+    $sum = intval(getPostVal('cost'));
+    $user_id = $_SESSION['user_id'];
+    $lot_id = intval(getQueryParameter('id'));
+
+    mysqli_stmt_bind_param($prepare_values, 'iii',
+        $sum,
+        $user_id,
+        $lot_id
+    );
+    mysqli_stmt_execute($prepare_values);
+}
+
+
+function getBetsForLot(mysqli $con): array {
+    $sql = 'SELECT `B`.`date`, `B`.`sum`, `U`.`name` AS `username` from `Bet` AS `B`
+            INNER JOIN `User` AS `U` ON `U`.`id` = `B`.`user_id`
+            WHERE `B`.`lot_id` = ?
+            ORDER BY `B`.`sum` DESC
+            LIMIT 10';
+    $prepare_values = mysqli_prepare($con, $sql);
+
+    $lot_id = intval(getQueryParameter('id'));
+
+    mysqli_stmt_bind_param($prepare_values, 'i',
+        $lot_id
+    );
+    mysqli_stmt_execute($prepare_values);
+
+    return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
+}
+
+function formatDate(string $date): string {
+    $passedTime = time() - strtotime($date);
+
+    $days = round($passedTime / (HOURS_IN_DAY * SEC_IN_HOURS));
+    if ($days > 0) {
+        return $days . ' ' . get_noun_plural_form($days, 'день', 'дня', 'дней');
+    }
+
+    $hours = round($passedTime / SEC_IN_HOURS);
+    if ($hours > 0) {
+        return $hours . ' ' . get_noun_plural_form($hours, 'час', 'часа', 'часов');
+    }
+
+    $minutes = round($passedTime / MIN_IN_HOURS);
+    if ($minutes > 0) {
+        return $minutes . ' ' . get_noun_plural_form($minutes, 'минуту', 'минуты', 'минут');
+    }
+
+    $seconds = round($passedTime);
+    return $seconds . ' ' . get_noun_plural_form($seconds, 'секунду', 'секунды', 'секунд');
+}
+
+function getMaxBetSum($con): int {
+    $sql = 'SELECT `B`.`sum` from `Bet` AS `B`
+            WHERE `B`.`lot_id` = ?
+            ORDER BY `B`.`sum` DESC
+            LIMIT 1';
+
+    $prepare_values = mysqli_prepare($con, $sql);
+
+    $lot_id = intval(getQueryParameter('id'));
+
+    mysqli_stmt_bind_param($prepare_values, 'i',
+        $lot_id
+    );
+    mysqli_stmt_execute($prepare_values);
+
+    return mysqli_fetch_row(mysqli_stmt_get_result($prepare_values))[0] ?? 0;
 }

@@ -21,7 +21,7 @@ if (!getQueryParameter('id') || !checkLotByQueryId($con)) {
     ]);
 } else {
     $lot = getLotById($con);
-    $maxBetSum = getMaxBetSum($con);
+    $maxBetSum = getMaxBetSumForLot($con);
 
     if ($maxBetSum === 0) {
         $minBet = $lot['start_price'] + $lot['step'];

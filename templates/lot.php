@@ -28,9 +28,17 @@
                             <?php
                                 $array = leftTimeToDate($lot['end_date']);
                                 $hours = $array[0];
-                                $mins = $array[1]
+                                $mins = $array[1];
+
+                                $isLotEnd = intval($hours) < 0;
+
+                                if($isLotEnd):
                             ?>
-                            <div class="lot-item__timer timer <?php if(intval($hours) < 24): ?>timer--finishing<?php endif; ?>">
+                            <div class="timer timer--end">
+                                Торги окончены
+                            </div>
+                            <?php else:?>
+                            <div class="lot-item__timer timer">
                                 <?="{$hours}:{$mins}"?>
                             </div>
                             <div class="lot-item__cost-state">
@@ -52,6 +60,7 @@
                                 </p>
                                 <button type="submit" class="button">Сделать ставку</button>
                             </form>
+                            <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>

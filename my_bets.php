@@ -11,9 +11,13 @@ $footer = include_template('footer.php', [
     'categories' => getCategories($con),
 ]);
 
+$userBets = getBetsForUser($con);
+
 $myBetsContent = include_template('my_bets.php', [
     'header' => $header,
     'footer' => $footer,
+    'userBets' => $userBets,
+    'con' => $con,
 ]);
 
 print($myBetsContent);

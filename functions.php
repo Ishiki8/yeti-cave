@@ -53,13 +53,7 @@ function getLotsList(mysqli $con): array {
             ORDER BY `create_date` DESC';
     $result = mysqli_query($con, $sql);
 
-    if ($result) {
-        return mysqli_fetch_all($result, MYSQLI_ASSOC);
-    }
-    else {
-        print('Запрос не выполнен!');
-        return [];
-    }
+    return mysqli_fetch_all($result, MYSQLI_ASSOC) ?? [];
 }
 
 /**
@@ -73,13 +67,7 @@ function getCategories(mysqli $con): array {
     $sql = 'SELECT * FROM `Category`';
     $result = mysqli_query($con, $sql);
 
-    if ($result) {
-        return mysqli_fetch_all($result, MYSQLI_ASSOC);
-    }
-    else {
-        print('Запрос не выполнен!');
-        return [];
-    }
+    return mysqli_fetch_all($result, MYSQLI_ASSOC) ?? [];
 }
 
 /**
@@ -171,13 +159,7 @@ function getLotById(mysqli $con): array {
             WHERE `Lot`.`id` ='.$id;
     $result = mysqli_query($con, $sql);
 
-    if($result) {
-        return mysqli_fetch_array($result, MYSQLI_ASSOC);
-    }
-    else {
-        print('Запрос не выполнен!');
-        return [];
-    }
+    return mysqli_fetch_array($result, MYSQLI_ASSOC) ?? [];
 }
 
 /**
@@ -420,6 +402,11 @@ function getLotsByCategoryCode(mysqli $con, int $lotsPerPage, string $categoryCo
     return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
 }
 
+/**
+ * Добавляет ставку в базу данных
+ *
+ * @param mysqli $con соединение с базой данных
+ */
 function addBet(mysqli $con): void {
     $sql = 'INSERT INTO `Bet` (`sum`, `user_id`, `lot_id`)
             VALUES (?, ?, ?)';
@@ -437,7 +424,15 @@ function addBet(mysqli $con): void {
     mysqli_stmt_execute($prepare_values);
 }
 
-
+/**
+ * Получает ставки для текущего лота
+ *
+ * Использует параметр запроса id на странице лота
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @return array ставки для лота
+ */
 function getBetsForLot(mysqli $con): array {
     $sql = 'SELECT `B`.`date`, `B`.`sum`, `U`.`name` AS `username` from `Bet` AS `B`
             INNER JOIN `User` AS `U` ON `U`.`id` = `B`.`user_id`
@@ -456,6 +451,16 @@ function getBetsForLot(mysqli $con): array {
     return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
 }
 
+/**
+ * Получает оставшееся время до указанной даты
+ *
+ * Время возвращается в виде строки 'n one/two/many',
+ * где n - дни/часы/минуты/секунды, а one/two/many - корректные формы множественного числа
+ *
+ * @param string $date дата
+ *
+ * @return string оставшееся до даты время
+ */
 function formatDate(string $date): string {
     $passedTime = time() - strtotime($date);
 
@@ -478,7 +483,16 @@ function formatDate(string $date): string {
     return $seconds . ' ' . get_noun_plural_form($seconds, 'секунду', 'секунды', 'секунд');
 }
 
-function getMaxBetSum($con): int {
+/**
+ * Получает максимальную сумму ставки для лота
+ *
+ * Использует параметр запроса id на странице лота
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @return int максимальную сумму ставки
+ */
+function getMaxBetSumForLot(mysqli $con): int {
     $sql = 'SELECT `B`.`sum` from `Bet` AS `B`
             WHERE `B`.`lot_id` = ?
             ORDER BY `B`.`sum` DESC
@@ -494,4 +508,101 @@ function getMaxBetSum($con): int {
     mysqli_stmt_execute($prepare_values);
 
     return mysqli_fetch_row(mysqli_stmt_get_result($prepare_values))[0] ?? 0;
+}
+
+/**
+ * Получает все ставки текущего пользователя
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @return array ставки текущего пользователя
+ */
+function getBetsForUser(mysqli $con): array {
+    $sql = 'SELECT `B`.`id`,`B`.`date`, `B`.`sum`, `L`.`title` AS `lot_title`, `L`.`image` AS `lot_img`, 
+            `L`.`id` AS `lot_id`, `L`.`end_date` AS `lot_end_date`, `L`.`winner_id` AS `lot_winner_id`, 
+            `L`.`author_id` AS `lot_author_id`, `C`.`title` AS `lot_category_title`, `C`.`code` AS `lot_category_code` 
+            FROM `Bet` AS `B`
+            INNER JOIN `Lot` AS `L` ON `L`.`id` = `B`.`lot_id`
+            INNER JOIN `Category` AS `C` ON `C`.`id` = `L`.`category_id`
+            WHERE `B`.`user_id` = ?
+            ORDER BY `B`.`date` DESC';
+
+    $prepare_values = mysqli_prepare($con, $sql);
+
+    $user_id = $_SESSION['user_id'];
+
+    mysqli_stmt_bind_param($prepare_values, 'i',
+        $user_id
+    );
+    mysqli_stmt_execute($prepare_values);
+
+    return mysqli_fetch_all(mysqli_stmt_get_result($prepare_values), MYSQLI_ASSOC);
+}
+
+/**
+ * Получает список истекших лотов
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @return array истекшие лоты
+ */
+function getExpiredLotsList(mysqli $con): array {
+    $sql = 'SELECT * FROM `Lot`
+            WHERE `end_date` < CURRENT_DATE';
+    $result = mysqli_query($con, $sql);
+
+    return mysqli_fetch_all($result, MYSQLI_ASSOC) ?? [];
+}
+
+/**
+ * Устанавливает победителя для лота
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @param int $lotId id лота
+ */
+function setWinnerForLot(mysqli $con, int $lotId): void {
+    $sql = 'UPDATE `Lot`
+            SET `winner_id` = (SELECT `user_id` FROM `Bet` WHERE `lot_id` = '.$lotId.' ORDER BY `date` DESC LIMIT 1)
+            WHERE `id` ='.$lotId;
+
+    mysqli_query($con, $sql);
+}
+
+/**
+ * Получает контакты пользователя
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @param int $user_id id пользователя
+ *
+ * @return string контакты пользователя
+ */
+function getUserContacts(mysqli $con, int $user_id): string {
+    $sql = 'SELECT `contacts` FROM `User`
+            WHERE `id` ='.$user_id;
+
+    $result = mysqli_query($con, $sql);
+
+    return mysqli_fetch_row($result)[0] ?? "";
+}
+
+/**
+ * Получает id последней ставки текущего пользователя для лота
+ *
+ * @param mysqli $con соединение с базой данных
+ *
+ * @param int $lotId id лота
+ *
+ * @return int id последней ставки
+ */
+function getLastUserBetIdForLot(mysqli $con, int $lotId): int {
+    $sql = 'SELECT `id` FROM `Bet`
+            WHERE `lot_id` ='.$lotId.' AND `user_id` ='.$_SESSION['user_id'].' 
+            ORDER BY `sum` DESC
+            LIMIT 1';
+
+    $result = mysqli_query($con, $sql);
+
+    return mysqli_fetch_row($result)[0] ?? 0;
 }

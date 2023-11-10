@@ -26,5 +26,10 @@ $layout_content = include_template('layout.php', [
     'categories' => getCategories($con),
 ]);
 
+$expiredLots = getExpiredLotsList($con);
+foreach ($expiredLots as $lot) {
+    setWinnerForLot($con, $lot['id']);
+}
+
 print($layout_content);
 

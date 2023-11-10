@@ -38,7 +38,7 @@ CREATE TABLE `Bet`
 (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
     `date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `sum` INT DEFAULT 1000,
+    `sum` INT NOT NULL,
     `user_id` INT NOT NULL,
     `lot_id` INT NOT NULL,
 

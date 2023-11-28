@@ -4,9 +4,9 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 session_start();
 
 CONST HOST = 'localhost';
-CONST USER = 'nmypgpsb';
-CONST PASSWORD = 'dR5FC1';
-CONST DATABASE = 'nmypgpsb_m3';
+CONST USER = '';
+CONST PASSWORD = '';
+CONST DATABASE = '';
 
 $con = mysqli_connect(HOST, USER, PASSWORD, DATABASE);
 
